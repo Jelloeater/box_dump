@@ -1,6 +1,6 @@
 [project]
 name = "box_dump"
-version = "1.0.0"
+version = "1.0.1"
 description = "Backup installed packages to JSON/SQLite and visualize drift with NiceGUI"
 readme = "README.md"
 requires-python = ">=3.10"
