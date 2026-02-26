@@ -8,27 +8,56 @@ Package-backup is a tool to back up installed packages from multiple package man
 
 ```
 box_dump/
-├── backup.py         # Package collection + GitHub sync
-├── drift_viewer.py   # NiceGUI web UI
-├── pyproject.toml    # Project config
-├── README.md         # Documentation
-├── AGENTS.md         # This file
-├── .editorconfig     # Editor config
+├── box_dump/
+│   ├── __init__.py      # Package init, exports CLI
+│   ├── cli.py           # Main CLI entry with subcommands
+│   └── commands/
+│       ├── __init__.py
+│       ├── backup.py    # backup subcommand
+│       └── viewer.py    # viewer subcommand (NiceGUI)
+├── pyproject.toml       # Project config
+├── README.md            # Documentation
+├── AGENTS.md           # This file
 └── tests/
     └── test_backup.py
 ```
 
 ## Key Design Decisions
 
-1. **Single-file scripts**: Both `backup.py` and `drift_viewer.py` are standalone scripts with uv shebangs for easy execution
-2. **JSON output**: Simple format `{name, version}` arrays, filenames encode hostname and package manager
-3. **SQLite via peewee**: Local database for fast queries and drift analysis
-4. **Main branch workflow**: All machines push to main branch with unique filenames
+1. **Unified CLI**: Single `box-dump` command with `backup` and `viewer` subcommands
+2. **Installable package**: Can be installed via `uv tool install .` or `pipx install .`
+3. **JSON output**: Simple format `{name, version}` arrays, filenames encode hostname and package manager
+4. **SQLite via peewee**: Local database for fast queries and drift analysis
+5. **Custom output path**: Use `--path` to specify output directory for version-controlled backups
+6. **Main branch workflow**: All machines push to main branch with unique filenames
 
 ## Package Manager Support
 
 - **macOS**: brew, pip, npm, stew, zb
 - **Linux**: brew, apt, snap, flatpak, pip, npm, stew, zb
+
+## Installation
+
+```bash
+# Install as CLI tool (recommended)
+uv tool install .
+
+# Or using pipx
+pipx install .
+```
+
+## CLI Usage
+
+```bash
+# Backup commands
+box-dump backup                    # Default: ~/.cache/box_dump
+box-dump backup --path /path       # Custom output directory
+box-dump backup --push --repo "owner/repo"
+box-dump backup --no-sqlite
+
+# Viewer command
+box-dump viewer --port 8080
+```
 
 ## Testing
 
@@ -49,7 +78,7 @@ pytest
 
 ### Adding a new package manager
 
-1. Add parser method to `PackageCollector` class in `backup.py`:
+1. Add parser method to `PackageCollector` class in `box_dump/commands/backup.py`:
    ```python
    def _parse_newpm(self) -> list[dict]:
        """Parse newpm list."""
@@ -62,21 +91,11 @@ pytest
 
 2. Add to `collect_all()` method in appropriate OS block
 
-3. Add install command in `drift_viewer.py` `get_install_command()` function
+3. Add install command in `box_dump/commands/viewer.py` `get_install_command()` function
 
 ### Updating dependencies
 
-Update `pyproject.toml` and the shebang dependencies in both scripts.
-
-## Scripts Usage
-
+Update `pyproject.toml` dependencies and reinstall:
 ```bash
-# Backup (local only)
-uv run --script backup.py
-
-# Backup + push to GitHub
-uv run --script backup.py --push --repo "owner/repo"
-
-# Run drift viewer
-uv run --script drift_viewer.py
+uv tool install . --force
 ```

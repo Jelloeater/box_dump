@@ -1,18 +1,6 @@
-#!/usr/bin/env -S uv run --script
-"""# /// script
-# requires-python = ">=3.10"
-# dependencies = [
-#     "nicegui",
-#     "peewee",
-# ]
-# ///
+"""Viewer subcommand for box-dump - NiceGUI app to visualize package drift."""
 
-NiceGUI app to visualize package drift between machines.
-
-Usage:
-    uv run --script drift_viewer.py
-"""
-
+import argparse
 import json
 import subprocess
 from datetime import datetime
@@ -37,6 +25,7 @@ PackageManager = None
 Package = None
 table = None
 drift_label = None
+missing_table = None
 selected_host = {"name": None}
 
 
@@ -126,29 +115,7 @@ def load_packages_from_repo() -> dict[str, dict[str, list[dict]]]:
     return packages_by_host
 
 
-def calculate_drift(all_packages: dict) -> dict:
-    """Calculate drift between hosts."""
-    drift = {}
-
-    for hostname, packages in all_packages.items():
-        all_pkgs = set()
-        by_pm = {}
-
-        for pm_name, pkgs in packages.items():
-            pm_set = set(pkg["name"] for pkg in pkgs)
-            all_pkgs.update(pm_set)
-            by_pm[pm_name] = pm_set
-
-        drift[hostname] = {
-            "total": len(all_pkgs),
-            "by_pm": by_pm,
-            "all": all_pkgs,
-        }
-
-    return drift
-
-
-def get_install_command(pkg_name: str, target_os: str, package_manager: str = None) -> str:
+def get_install_command(pkg_name: str, target_os: str, package_manager: str | None = None) -> str:
     """Generate install command for a package."""
     if package_manager:
         if package_manager == "brew":
@@ -176,6 +143,7 @@ def get_install_command(pkg_name: str, target_os: str, package_manager: str = No
 
 def refresh_data():
     """Refresh data from repo and rebuild DB."""
+    global table, drift_label
     try:
         clone_or_pull()
         all_packages = load_packages_from_repo()
@@ -210,6 +178,7 @@ def refresh_data():
 
 def load_table_data():
     """Load and display hosts in table."""
+    global table, drift_label
     try:
         database = setup_db()
         hosts = Host.select()
@@ -239,7 +208,7 @@ def load_table_data():
 
 def on_row_click(e):
     """Handle row click to show drift details."""
-    global selected_host
+    global selected_host, missing_table, drift_label
     selected_host["name"] = e.value["hostname"]
 
     all_packages = load_packages_from_repo()
@@ -257,7 +226,7 @@ def on_row_click(e):
         other_data = all_packages.get(other_host, {})
         other_pkgs = set()
         for pm_pkgs in other_data.values():
-            other_pkgs.update(pkg["name"] for pm_pkgs in pm_pkgs)
+            other_pkgs.update(pkg["name"] for pkg in pm_pkgs)
 
         unique_to_other = other_pkgs - host_pkgs
         for pkg_name in sorted(unique_to_other):
@@ -281,6 +250,7 @@ def on_row_click(e):
 
 async def copy_commands():
     """Copy selected install commands to clipboard."""
+    global selected_host, missing_table
     if not selected_host["name"]:
         ui.notify("No host selected", type="warning")
         return
@@ -313,40 +283,53 @@ async def copy_commands():
     ui.notify(f"Copied {len(commands)} commands!", type="positive")
 
 
-ui.page_title("Package Drift Viewer")
+def create_ui():
+    """Create the NiceGUI UI."""
+    global table, drift_label, missing_table
 
-with ui.header():
-    ui.label("Package Drift Viewer").style("font-size: 1.5em; font-weight: bold")
+    ui.page_title("Package Drift Viewer")
+
+    with ui.header():
+        ui.label("Package Drift Viewer").style("font-size: 1.5em; font-weight: bold")
+        with ui.row():
+            ui.button("Refresh", on_click=refresh_data).props("flat")
+
+    with ui.row().style("width: 100%; padding: 10px"):
+        drift_label = ui.label("Loading...").style("font-weight: bold")
+
+    table = ui.table(
+        columns=[
+            {"name": "hostname", "label": "Host", "field": "hostname", "align": "left"},
+            {"name": "os", "label": "OS", "field": "os", "align": "left"},
+            {"name": "packages", "label": "Packages", "field": "packages", "align": "right"},
+            {
+                "name": "last_updated",
+                "label": "Last Updated",
+                "field": "last_updated",
+                "align": "left",
+            },
+        ],
+        rows=[],
+        row_key="hostname",
+        on_row_click=on_row_click,
+    ).style("width: 100%")
+
+    missing_table = ui.table(
+        columns=[
+            {"name": "name", "label": "Package", "field": "name", "align": "left"},
+            {"name": "pm", "label": "Manager", "field": "pm", "align": "left"},
+            {"name": "command", "label": "Install Command", "field": "command", "align": "left"},
+        ],
+        rows=[],
+    ).style("width: 100%")
+
     with ui.row():
-        ui.button("Refresh", on_click=refresh_data).props("flat")
+        ui.button("Copy All Commands", on_click=copy_commands).props("color=primary")
 
-with ui.row().style("width: 100%; padding: 10px"):
-    drift_label = ui.label("Loading...").style("font-weight: bold")
+    load_table_data()
 
-table = ui.table(
-    columns=[
-        {"name": "hostname", "label": "Host", "field": "hostname", "align": "left"},
-        {"name": "os", "label": "OS", "field": "os", "align": "left"},
-        {"name": "packages", "label": "Packages", "field": "packages", "align": "right"},
-        {"name": "last_updated", "label": "Last Updated", "field": "last_updated", "align": "left"},
-    ],
-    rows=[],
-    row_key="hostname",
-    on_row_click=on_row_click,
-).style("width: 100%")
 
-missing_table = ui.table(
-    columns=[
-        {"name": "name", "label": "Package", "field": "name", "align": "left"},
-        {"name": "pm", "label": "Manager", "field": "pm", "align": "left"},
-        {"name": "command", "label": "Install Command", "field": "command", "align": "left"},
-    ],
-    rows=[],
-).style("width: 100%")
-
-with ui.row():
-    ui.button("Copy All Commands", on_click=copy_commands).props("color=primary")
-
-load_table_data()
-
-ui.run()
+def main(args: argparse.Namespace):
+    """Main entry point for viewer subcommand."""
+    create_ui()
+    ui.run(port=args.port)

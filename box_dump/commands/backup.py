@@ -1,18 +1,4 @@
-#!/usr/bin/env -S uv run --script
-"""# /// script
-# requires-python = ">=3.10"
-# dependencies = [
-#     "peewee",
-#     "GitPython",
-# ]
-# ///
-
-Backup installed packages to JSON and SQLite.
-
-Usage:
-    uv run --script backup.py --push
-    uv run --script backup.py --repo "user/repo"
-"""
+"""Backup subcommand for box-dump."""
 
 import argparse
 import json
@@ -33,6 +19,7 @@ from peewee import (
 HOSTNAME = platform.node()
 REPO_URL = "https://github.com/{owner}/{repo}.git"
 LOCAL_REPO_PATH = Path.home() / ".cache" / "package-backup"
+CACHE_PATH = Path.home() / ".cache" / "box_dump"
 DB_PATH = Path.home() / ".local" / "share" / "package-backup" / "packages.db"
 
 
@@ -225,7 +212,7 @@ class GitManager:
             origin.push()
 
 
-def setup_database(db_path: Path) -> tuple:
+def setup_database(db_path: Path):
     """Setup peewee database and models."""
     db = SqliteDatabase(db_path)
 
@@ -260,9 +247,9 @@ def setup_database(db_path: Path) -> tuple:
 
 def export_to_sqlite(
     db: SqliteDatabase,
-    Host: Model,
-    PackageManager: Model,
-    Package: Model,
+    Host: type[Model],
+    PackageManager: type[Model],
+    Package: type[Model],
     packages: dict[str, list[dict]],
     os_type: str,
 ) -> None:
@@ -288,34 +275,16 @@ def export_to_sqlite(
             )
 
 
-def main():
-    """Main entry point."""
-    parser = argparse.ArgumentParser(description="Backup installed packages")
-    parser.add_argument(
-        "--push",
-        action="store_true",
-        help="Push to GitHub",
-    )
-    parser.add_argument(
-        "--repo",
-        type=str,
-        default=REPO_URL,
-        help="GitHub repository (owner/repo)",
-    )
-    parser.add_argument(
-        "--no-sqlite",
-        action="store_true",
-        help="Skip SQLite export",
-    )
-    args = parser.parse_args()
-
+def main(args: argparse.Namespace):
+    """Main entry point for backup subcommand."""
     collector = PackageCollector()
     packages = collector.collect_all()
 
-    script_dir = Path(__file__).parent.resolve()
+    output_path = args.path if args.path else CACHE_PATH
+    output_path.mkdir(parents=True, exist_ok=True)
 
     for pm_name, pkgs in packages.items():
-        output_file = script_dir / f"{collector.hostname}_{pm_name}.json"
+        output_file = output_path / f"{collector.hostname}_{pm_name}.json"
         with open(output_file, "w") as f:
             json.dump(pkgs, f, indent=2)
         print(f"Wrote {len(pkgs)} packages to {output_file}")
@@ -331,14 +300,10 @@ def main():
         git_mgr = GitManager(repo_url, LOCAL_REPO_PATH)
         repo = git_mgr.clone_or_pull()
 
-        json_files = list(script_dir.glob(f"{collector.hostname}_*.json"))
+        json_files = list(output_path.glob(f"{collector.hostname}_*.json"))
         git_mgr.commit_and_push(
             repo,
             json_files,
             f"Update packages for {collector.hostname}",
         )
         print(f"Pushed to GitHub: {args.repo}")
-
-
-if __name__ == "__main__":
-    main()

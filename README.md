@@ -10,6 +10,7 @@ Backup installed packages from multiple package managers to JSON/SQLite, and vis
 - **GitHub sync**: Push backups to a shared repo
 - **Drift visualization**: NiceGUI web UI showing package differences
 - **Install commands**: Generate commands to sync packages between machines
+- **Unified CLI**: Single `box-dump` command with subcommands
 
 ## Supported Package Managers
 
@@ -26,56 +27,68 @@ Backup installed packages from multiple package managers to JSON/SQLite, and vis
 
 ## Installation
 
-### Quick Start (uv)
+### Install as CLI tool (recommended)
 
 ```bash
-# Run backup
-uv run --script backup.py
+# Using uv (recommended)
+uv tool install .
 
-# Push to GitHub
-uv run --script backup.py --push --repo "your-username/package-backups"
-
-# Run drift viewer
-uv run --script drift_viewer.py
+# Or using pipx
+pipx install .
 ```
 
-### With pyproject.toml
+This installs the `box-dump` command globally.
+
+### Development Install
 
 ```bash
-# Install dependencies
-pip install -e ".[viewer]"
+# Install with all dependencies
+uv pip install -e . --system --break-system-packages
 
-# Or with uv
-uv pip install -e ".[viewer]"
-
-# Run
-python backup.py
-python drift_viewer.py
+# Or with pip
+pip install -e ".[dev]"
 ```
 
 ## Usage
 
-### Backup Script
+### Backup Command
 
 ```bash
-# Basic backup (creates JSON files locally)
-python backup.py
+# Basic backup to default cache (~/.cache/box_dump)
+box-dump backup
+
+# Backup to custom directory (useful for git versioning)
+box-dump backup --path ~/projects/package-backups
 
 # Backup and push to GitHub
-python backup.py --push --repo "username/repo"
+box-dump backup --push --repo "your-username/package-backups"
 
 # Skip SQLite export
-python backup.py --no-sqlite
+box-dump backup --no-sqlite
 ```
 
-### Drift Viewer
+### Viewer Command
 
 ```bash
-# Run the web UI
-python drift_viewer.py
+# Run the web UI (default port 8080)
+box-dump viewer
+
+# Custom port
+box-dump viewer --port 3000
 ```
 
 Then open http://localhost:8080 in your browser.
+
+### Run Without Installation
+
+```bash
+# Using uv
+uv run -m box_dump.cli backup
+uv run -m box_dump.cli viewer
+
+# Or with specific subcommand
+uv run -m box_dump.cli backup --path ~/my-packages
+```
 
 ## JSON Output Format
 
@@ -92,29 +105,30 @@ Files are named `{hostname}_{package_manager}.json`:
 ## GitHub Setup
 
 1. Create a new GitHub repository
-2. Update `REPO_URL` in both scripts, or use `--repo` flag
-3. Run `backup.py --push` on each machine
+2. Run backup with `--push --repo "your-username/repo-name"`
+3. Each machine backs up to its own JSON files in the repo
 
 ## Configuration
 
-Edit these variables in the scripts:
+### Default Paths
 
-```python
-# backup.py
-REPO_URL = "https://github.com/{owner}/{repo}.git"
-LOCAL_REPO_PATH = Path.home() / ".cache" / "package-backup"
+- **JSON cache**: `~/.cache/box_dump/`
+- **SQLite database**: `~/.local/share/package-backup/packages.db`
+- **Git repo clone**: `~/.cache/package-backup/`
 
-# drift_viewer.py  
-REPO_URL = "https://github.com/{owner}/{repo}.git"
-LOCAL_REPO_PATH = Path.home() / ".cache" / "package-backup"
-DB_PATH = Path.home() / ".local" / "share" / "package-backup" / "packages.db"
+### Override Output Directory
+
+Use `--path` to specify a custom output directory (e.g., a git-initialized folder):
+
+```bash
+box-dump backup --path ~/projects/package-backups --push
 ```
 
 ## Development
 
 ```bash
 # Install dev dependencies
-pip install -e ".[dev]"
+uv pip install -e ".[dev]" --system --break-system-packages
 
 # Run tests
 pytest

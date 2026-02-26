@@ -1,6 +1,6 @@
 [project]
 name = "box_dump"
-version = "0.1.0"
+version = "1.0.0"
 description = "Backup installed packages to JSON/SQLite and visualize drift with NiceGUI"
 readme = "README.md"
 requires-python = ">=3.10"
@@ -19,6 +19,7 @@ classifiers = [
 dependencies = [
     "peewee>=3.17.0",
     "GitPython>=3.1.40",
+    "nicegui>=2.0.0",
 ]
 
 [project.optional-dependencies]
@@ -29,11 +30,14 @@ dev = [
 ]
 
 [project.scripts]
-box-dump-backup = "backup:main"
+box-dump = "box_dump.cli:main"
 
 [build-system]
 requires = ["hatchling"]
 build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["box_dump"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
@@ -43,7 +47,8 @@ python_files = ["test_*.py"]
 target-version = "py310"
 line-length = 100
 select = ["E", "F", "I", "N", "W", "UP"]
-ignore = []
+ignore = ["N803", "N806"]
 
 [tool.ruff.per-file-ignores]
 "__init__.py" = ["F401"]
+"**/viewer.py" = ["F841", "N806"]
