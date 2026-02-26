@@ -311,8 +311,8 @@ def create_ui():
         ],
         rows=[],
         row_key="hostname",
-        on_row_click=on_row_click,
     ).style("width: 100%")
+    table.on("rowClick", on_row_click)
 
     missing_table = ui.table(
         columns=[
