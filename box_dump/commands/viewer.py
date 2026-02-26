@@ -279,7 +279,8 @@ async def copy_commands():
                     commands.append(get_install_command(pkg_name, "linux", pm_name))
                     break
 
-    await ui.run_javascript(f"navigator.clipboard.writeText({json.dumps('\\n'.join(commands))})")
+    commands_text = "\n".join(commands)
+    await ui.run_javascript(f"navigator.clipboard.writeText({json.dumps(commands_text)})")
     ui.notify(f"Copied {len(commands)} commands!", type="positive")
 
 
