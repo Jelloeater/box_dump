@@ -332,5 +332,8 @@ def create_ui():
 
 def main(args: argparse.Namespace):
     """Main entry point for viewer subcommand."""
+    import __main__
+
+    __main__.__name__ = "__main__"
     create_ui()
     ui.run(port=args.port)
